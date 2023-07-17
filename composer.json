@@ -1,0 +1,16 @@
+{
+  "name": "slark12001/test_divan.ru",
+  "description": "Test task for divan.ru",
+  "minimum-stability": "stable",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "slark",
+      "email": "slark12001@gmail.com"
+    }
+  ],
+  "require": {
+    "php": "8.1.*"
+
+  }
+}
