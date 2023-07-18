@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libzip-dev \
     libmcrypt-dev
-#RUN docker-php-ext-install -j$(nproc) mysqli zip pdo_mysql
+RUN docker-php-ext-install -j$(nproc) bcmath
 #RUN pecl install xdebug-3.1.0
 #RUN docker-php-ext-enable xdebug
 
