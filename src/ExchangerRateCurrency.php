@@ -8,7 +8,7 @@ use App\Exceptions\RateCurrencyNotExistException;
 
 class ExchangerRateCurrency
 {
-    public array $rates = [];
+    protected array $rates = [];
     protected const DELIMITER = '/';
 
     public function __construct()
@@ -31,7 +31,7 @@ class ExchangerRateCurrency
 
         $secondRateKey = $this->createRelationKey($currencyTo, $currencyFrom);
         $secondRate = (float)bcdiv('1', (string)$rate, 10);
-        $this->rates[$secondRateKey] = round($secondRate, 3);
+        $this->rates[$secondRateKey] = round($secondRate, 6);
     }
 
     /**
@@ -61,10 +61,11 @@ class ExchangerRateCurrency
         throw new RateCurrencyNotExistException();
     }
 
-    public function convert(Currency $currencyFrom, Currency $currencyTo, float $amount): float
+    public function convert(Currency $currencyFrom, Currency $currencyTo, float $amount): Funds
     {
         $rate = $this->getRate($currencyFrom, $currencyTo);
-        $resultConvert = (float)bcmul((string)$amount, (string)$rate, 10);
-        return round($resultConvert, 3);
+        $resultConvert = bcmul((string)$amount, (string)$rate, 10);
+        $resultConvert = round((float)$resultConvert, 2);
+        return new Funds($currencyTo, $resultConvert);
     }
 }

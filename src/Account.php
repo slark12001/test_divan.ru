@@ -4,122 +4,98 @@ declare(strict_types=1);
 
 namespace App;
 
-use App\Exceptions\CurrencyExistException;
+use App\Exceptions\CannotDeleteMainCurrencyException;
 use App\Exceptions\CurrencyNotExistException;
 use App\Exceptions\MainCurrencyIsNotSetException;
 use App\Exceptions\NotEnoughFundsException;
+use App\Interfaces\MainCurrency;
 
-class Account
+class Account implements \App\Interfaces\Currency, MainCurrency
 {
+    use \App\Traits\Currency {
+        addCurrency as addCurrencyTrait;
+        addCurrency as protected;
+        removeCurrency as removeCurrencyTrait;
+        removeCurrency as protected;
+    }
+
+    protected string $id;
     /**
      * @var Funds[]
      */
-    protected array $currencies = [];
+    protected array $funds = [];
+    public function __construct(
+        protected readonly Client $client,
+        protected readonly Bank $bank
+    )
+    {
+        $this->id = uniqid(more_entropy: true);
+    }
+
     /**
-     * @var Currency
+     * @return string
      */
-    protected Currency $mainCurrency;
+    public function getId(): string
+    {
+        return $this->id;
+    }
 
     /**
      * @param Currency $currency
-     * @return $this
-     * @throws CurrencyExistException
+     * @return void
+     * @throws CannotDeleteMainCurrencyException
      * @throws CurrencyNotExistException
      */
-    public function addCurrency(Currency $currency): static
+    public function removeCurrency(Currency $currency): void
     {
-        if ($this->checkCurrencyExist($currency) === true) {
-            throw new CurrencyExistException(
-                'The ' . $currency->name . ' currency has already been added to the account'
-            );
+        $this->removeCurrencyTrait($currency);
+
+        $currencyFunds = $this->funds[$currency->name];
+        if ($currencyFunds->getAmount() > 0) {
+            $this->replenishBalance($this->mainCurrency, $currencyFunds);
         }
+    }
 
-        $this->currencies[$currency->name] = new Funds($currency);
-
-        if ($this->mainCurrencyIsSet() === false) {
-            $this->setMainCurrency($currency);
-        }
-
-        return $this;
+    public function addCurrency(\App\Currency $currency)
+    {
+        $this->addCurrencyTrait($currency);
+        $this->funds[$currency->name] = new Funds($currency, 0);
     }
 
     /**
      * @param Currency $currency
-     * @return bool
-     */
-    protected function checkCurrencyExist(Currency $currency): bool
-    {
-        return isset($this->currencies[$currency->name]);
-    }
-
-    /**
-     * @return bool
-     */
-    protected function mainCurrencyIsSet(): bool
-    {
-        return isset($this->mainCurrency);
-    }
-
-    /**
-     * @param Currency $currency
+     * @param Funds $funds
      * @return $this
      * @throws CurrencyNotExistException
      */
-    public function setMainCurrency(Currency $currency): static
+    public function replenishBalance(Currency $currency, Funds $funds): static
     {
         if ($this->checkCurrencyExist($currency) === false) {
             throw new CurrencyNotExistException();
         }
 
-        $this->mainCurrency = $currency;
-        return $this;
-    }
-
-    /**
-     * @return Currency
-     * @throws MainCurrencyIsNotSetException
-     */
-    public function getMainCurrency(): Currency
-    {
-        if ($this->mainCurrencyIsSet() === false) {
-            throw new MainCurrencyIsNotSetException();
+        $currentFunds = $this->funds[$currency->name];
+        if ($currentFunds->getCurrency() === $funds->getCurrency()) {
+            $amount = $funds->getAmount();
+        } else {
+            $convertFunds = $this->bank
+                ->getExchangerRateCurrency()
+                ->convert($funds->getCurrency(), $currency, $funds->getAmount());
+            $amount = $convertFunds->getAmount();
         }
-
-        return $this->mainCurrency;
-    }
-
-    /**
-     * @return array
-     */
-    public function listAvailableCurrencies(): array
-    {
-        return array_keys($this->currencies);
-    }
-
-    /**
-     * @param Funds $funds
-     * @return $this
-     * @throws CurrencyNotExistException
-     */
-    public function replenishBalance(Funds $funds): static
-    {
-        if ($this->checkCurrencyExist($funds->getCurrency()) === false) {
-            throw new CurrencyNotExistException();
-        }
-
-        $currentFunds = $this->currencies[$funds->getCurrency()->name];
-        $this->currencies[$funds->getCurrency()->name] = $currentFunds->addAmount($funds->getAmount());
+        $currentFunds->addAmount($amount);
 
         return $this;
     }
 
     /**
      * @param Currency|null $currency
-     * @return string
+     * @param bool $withCurrency
+     * @return float|string
      * @throws CurrencyNotExistException
      * @throws MainCurrencyIsNotSetException
      */
-    public function getBalance(Currency $currency = null): string
+    public function getBalance(Currency $currency = null, bool $withCurrency = false): float|string
     {
         if ($this->currencies === []) {
             throw new CurrencyNotExistException();
@@ -127,34 +103,36 @@ class Account
 
         if ($currency === null) {
             $currency = $this->getMainCurrency();
-            $funds = $this->currencies[$currency->name];
+            $funds = $this->funds[$currency->name];
         } elseif ($this->checkCurrencyExist($currency) === false) {
             throw new CurrencyNotExistException();
         } else {
-            $funds = $this->currencies[$currency->name];
+            $funds = $this->funds[$currency->name];
         }
-
-        return $funds->getAmount() . ' ' . $currency->name;
+        $amount = $funds->getAmount();
+        return $withCurrency ? $amount . ' ' . $currency->name : $amount;
     }
 
     /**
-     * @param Funds $funds
-     * @return $this
+     * @param Currency $currency
+     * @param float $amount
+     * @return Funds
      * @throws CurrencyNotExistException
      * @throws NotEnoughFundsException
      */
-    public function withdrawBalance(Funds $funds): static
+    public function withdrawBalance(Currency $currency, float $amount): Funds
     {
-        if ($this->checkCurrencyExist($funds->getCurrency()) === false) {
+        if ($this->checkCurrencyExist($currency) === false) {
             throw new CurrencyNotExistException();
         }
 
-        $currentFunds = $this->currencies[$funds->getCurrency()->name];
-        if ($funds->getAmount() > $currentFunds->getAmount()) {
+        $currentFunds = $this->funds[$currency->name];
+        if ($amount > $currentFunds->getAmount()) {
             throw new NotEnoughFundsException();
         }
 
-        $this->currencies[$funds->getCurrency()->name] = $currentFunds->subAmount($funds->getAmount());
-        return $this;
+        $currentFunds->subAmount($amount);
+
+        return new Funds($currency, $amount);
     }
 }
