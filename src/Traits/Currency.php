@@ -1,24 +1,39 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Traits;
 
-use App\Exceptions\CannotDeleteMainCurrencyException;
 use App\Exceptions\CurrencyExistException;
 use App\Exceptions\CurrencyNotExistException;
 use App\Exceptions\MainCurrencyIsNotSetException;
 
+/**
+ * Designed to get rid of code duplication and added basic properties for the implementation
+ * of work with the main currency and the list of currencies
+ */
 trait Currency
 {
+    /**
+     * A list of currencies where the key is the name of the currency and the value is the activity of that currency
+     * Example: USD => true
+     * @var bool[]
+     */
     protected array $currencies = [];
-    protected \App\Currency $mainCurrency;
+    /**
+     * Main currency
+     * @var \App\Enums\Currency
+     */
+    protected \App\Enums\Currency $mainCurrency;
 
     /**
-     * @param \App\Currency $currency
-     * @return void
+     * Adds a currency if there is none, otherwise it will throw an exception
+     * @param \App\Enums\Currency $currency
+
      * @throws CurrencyExistException
      * @throws CurrencyNotExistException
      */
-    public function addCurrency(\App\Currency $currency): void
+    public function addCurrency(\App\Enums\Currency $currency): void
     {
         if ($this->checkCurrencyExist($currency) === true) {
             throw new CurrencyExistException(
@@ -33,33 +48,20 @@ trait Currency
         }
     }
 
-    /**
-     * @param \App\Currency $currency
-     * @return void
-     * @throws CannotDeleteMainCurrencyException
-     * @throws CurrencyNotExistException
-     */
-    public function removeCurrency(\App\Currency $currency): void
-    {
-        if ($this->checkCurrencyExist($currency) === false) {
-            throw new CurrencyNotExistException();
-        }
-        if ($this->mainCurrency === $currency) {
-            throw new CannotDeleteMainCurrencyException();
-        }
-        $this->currencies[$currency->name] = false;
-    }
 
     /**
-     * @param \App\Currency $currency
+     * Checking that this currency is present and it is active
+     * @param \App\Enums\Currency $currency
      * @return bool
      */
-    public function checkCurrencyExist(\App\Currency $currency): bool
+    public function checkCurrencyExist(\App\Enums\Currency $currency): bool
     {
-        return isset($this->currencies[$currency->name]);
+        $currencyExist = $this->currencies[$currency->name] ?? null;
+        return $currencyExist === true;
     }
 
     /**
+     * Making sure that the main currency is set
      * @return bool
      */
     protected function mainCurrencyIsSet(): bool
@@ -68,11 +70,12 @@ trait Currency
     }
 
     /**
-     * @param \App\Currency $currency
+     * Sets the main currency, if one is added, otherwise it will throw an exception
+     * @param \App\Enums\Currency $currency
      * @return $this
      * @throws CurrencyNotExistException
      */
-    public function setMainCurrency(\App\Currency $currency): static
+    public function setMainCurrency(\App\Enums\Currency $currency): static
     {
         if ($this->checkCurrencyExist($currency) === false) {
             throw new CurrencyNotExistException();
@@ -83,10 +86,11 @@ trait Currency
     }
 
     /**
-     * @return \App\Currency
+     * The main currency is returned if it is set, otherwise it will throw an exception
+     * @return \App\Enums\Currency
      * @throws MainCurrencyIsNotSetException
      */
-    public function getMainCurrency(): \App\Currency
+    public function getMainCurrency(): \App\Enums\Currency
     {
         if ($this->mainCurrencyIsSet() === false) {
             throw new MainCurrencyIsNotSetException();
@@ -96,6 +100,7 @@ trait Currency
     }
 
     /**
+     * Returns a list of available currencies
      * @return array
      */
     public function listAvailableCurrencies(): array

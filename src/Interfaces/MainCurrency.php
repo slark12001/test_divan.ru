@@ -1,10 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Interfaces;
 
 interface MainCurrency
 {
-    public function setMainCurrency(\App\Currency $currency);
+    /**
+     * @param \App\Enums\Currency $currency
+     * @return mixed
+     */
+    public function setMainCurrency(\App\Enums\Currency $currency): mixed;
 
-    public function getMainCurrency(): \App\Currency;
+    /**
+     * @return \App\Enums\Currency
+     */
+    public function getMainCurrency(): \App\Enums\Currency;
 }

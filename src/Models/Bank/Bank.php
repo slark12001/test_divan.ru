@@ -2,19 +2,24 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Models\Bank;
 
 use App\Common\Singleton;
+use App\Enums\Currency;
+use App\Exceptions;
+use App\Exceptions\CannotDeleteMainCurrencyException;
 use App\Exceptions\ClientIsExistException;
 use App\Exceptions\ClientNotExistException;
+use App\Exceptions\CurrencyExistException;
+use App\Exceptions\CurrencyNotExistException;
+use App\Exceptions\MainCurrencyIsNotSetException;
 use App\Interfaces\MainCurrency;
+use App\Models\Accounts\DebitAccount;
+use App\Models\Client\Client;
 
 class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
 {
-    use \App\Traits\Currency {
-        removeCurrency as removeCurrencyTrait;
-        removeCurrency as protected;
-    }
+    use \App\Traits\Currency;
 
     /**
      * @var Client[]
@@ -22,37 +27,26 @@ class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
     protected array $clients = [];
     protected array $clientsAccounts = [];
     /**
-     * @var Account[]
+     * @var DebitAccount[]
      */
     protected array $accounts = [];
     protected array $currencies = [];
+    protected ExchangerRateCurrency $exchangerRateCurrency;
 
-
-    protected function __construct(
-        protected ExchangerRateCurrency $exchangerRateCurrency = new ExchangerRateCurrency()
-    )
+    protected function __construct()
     {
+        $this->exchangerRateCurrency = new ExchangerRateCurrency($this);
         parent::__construct();
     }
 
     /**
-     * @param ExchangerRateCurrency $exchangerRateCurrency
-     * @return Bank
-     */
-    public function setExchangerRateCurrency(ExchangerRateCurrency $exchangerRateCurrency): static
-    {
-        $this->exchangerRateCurrency = $exchangerRateCurrency;
-        return $this;
-    }
-
-    /**
      * @param Client $client
-     * @return Account
+     * @return DebitAccount
      * @throws ClientIsExistException
      */
-    public function createAccount(Client $client): Account
+    public function createAccount(Client $client): DebitAccount
     {
-        $account = new Account($client, $this);
+        $account = new DebitAccount($client, $this);
 
         if (isset($this->clients[$client->getId()]) === true) {
             throw new ClientIsExistException();
@@ -84,15 +78,15 @@ class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
     }
 
     /**
-     * @return array
+     * @return DebitAccount[]
      */
     public function getAccounts(): array
     {
-        return array_values($this->clientsAccounts);
+        return array_values($this->accounts);
     }
 
     /**
-     * @return array
+     * @return Client[]
      */
     public function getClients(): array
     {
@@ -109,25 +103,32 @@ class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
 
     /**
      * @param Currency $currency
-     * @return void
-     * @throws Exceptions\CannotDeleteMainCurrencyException
-     * @throws Exceptions\CurrencyExistException
-     * @throws Exceptions\CurrencyNotExistException
-     * @throws Exceptions\MainCurrencyIsNotSetException
+     * @return Bank
+     * @throws CannotDeleteMainCurrencyException
+     * @throws CurrencyExistException
+     * @throws CurrencyNotExistException
+     * @throws MainCurrencyIsNotSetException|Exceptions\RateCurrencyNotExistException
      */
-    public function removeCurrency(\App\Currency $currency): void
+    public function removeCurrency(Currency $currency): static
     {
-        $this->removeCurrencyTrait($currency);
+        if ($this->checkCurrencyExist($currency) === false) {
+            throw new CurrencyNotExistException();
+        }
+        if ($this->mainCurrency === $currency) {
+            throw new CannotDeleteMainCurrencyException();
+        }
 
         for ($i = 0; $i < count($this->accounts); $i++) {
             $account = $this->accounts[$i];
-            if ($account->getMainCurrency() === $currency
-                && $account->checkCurrencyExist($this->getMainCurrency()) === false
-            ) {
-                $account->addCurrency($this->getMainCurrency());
+            if ($account->checkCurrencyExist($currency) === true) {
+                if ($account->checkCurrencyExist($this->getMainCurrency()) === false) {
+                    $account->addCurrency($this->getMainCurrency());
+                }
+                $account->setMainCurrency($this->getMainCurrency());
+                $account->removeCurrency($currency);
             }
-            $account->setMainCurrency($this->getMainCurrency());
-            $account->removeCurrency($currency);
         }
+        $this->currencies[$currency->name] = false;
+        return $this;
     }
 }
