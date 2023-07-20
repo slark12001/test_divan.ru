@@ -65,7 +65,6 @@ phpunit.phar
 # local phpunit config
 /phpunit.xml
 
-tests/
 tests/_output/*
 tests/_support/_generated
 

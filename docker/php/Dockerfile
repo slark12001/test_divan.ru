@@ -15,8 +15,10 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libzip-dev \
-    libmcrypt-dev
-RUN docker-php-ext-install -j$(nproc) bcmath
+    libmcrypt-dev \
+    zip \
+    unzip
+RUN docker-php-ext-install -j$(nproc) bcmath zip
 #RUN pecl install xdebug-3.1.0
 #RUN docker-php-ext-enable xdebug
 
