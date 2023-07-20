@@ -11,14 +11,14 @@ use App\Exceptions\CannotDeleteMainCurrencyException;
 use App\Exceptions\CurrencyNotExistException;
 use App\Exceptions\MainCurrencyIsNotSetException;
 use App\Exceptions\NotEnoughFundsException;
+use App\Exceptions\NeedWithdrawFundsException;
 use App\Interfaces\MainCurrency;
 use App\Traits\Id;
 
 class DebitAccount extends Account implements MainCurrency
 {
     use \App\Traits\Currency {
-        addCurrency as addCurrencyTrait;
-        addCurrency as protected;
+        addCurrency as protected addCurrencyTrait;
     }
     use Id;
 
@@ -30,11 +30,11 @@ class DebitAccount extends Account implements MainCurrency
     protected array $funds = [];
 
     /**
-     * Deletes a currency, if possible, and converts that currency into the main currency
+     * Deletes a currency, if possible. Throw out an exception if there is funds
      * @param Currency $currency
      * @return DebitAccount
      * @throws CannotDeleteMainCurrencyException
-     * @throws CurrencyNotExistException|Exceptions\RateCurrencyNotExistException
+     * @throws CurrencyNotExistException|NeedWithdrawFundsException
      */
     public function removeCurrency(Currency $currency): static
     {
@@ -46,7 +46,7 @@ class DebitAccount extends Account implements MainCurrency
 
         $currencyFunds = $this->funds[$currency->name];
         if ($currencyFunds->getAmount() > 0) {
-            $this->replenishBalance($this->mainCurrency, $currencyFunds);
+            throw new NeedWithdrawFundsException();
         }
         $this->currencies[$currency->name] = false;
         return $this;

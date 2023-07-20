@@ -13,6 +13,7 @@ use App\Exceptions\ClientNotExistException;
 use App\Exceptions\CurrencyExistException;
 use App\Exceptions\CurrencyNotExistException;
 use App\Exceptions\MainCurrencyIsNotSetException;
+use App\Exceptions\NotEnoughFundsException;
 use App\Interfaces\MainCurrency;
 use App\Models\Accounts\DebitAccount;
 use App\Models\Client\Client;
@@ -107,7 +108,8 @@ class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
      * @throws CannotDeleteMainCurrencyException
      * @throws CurrencyExistException
      * @throws CurrencyNotExistException
-     * @throws MainCurrencyIsNotSetException|Exceptions\RateCurrencyNotExistException
+     * @throws MainCurrencyIsNotSetException|Exceptions\NeedWithdrawFundsException
+     * @throws NotEnoughFundsException|Exceptions\RateCurrencyNotExistException
      */
     public function removeCurrency(Currency $currency): static
     {
@@ -125,6 +127,9 @@ class Bank extends Singleton implements \App\Interfaces\Currency, MainCurrency
                     $account->addCurrency($this->getMainCurrency());
                 }
                 $account->setMainCurrency($this->getMainCurrency());
+                $balance = $account->getBalance($currency);
+                $funds = $account->withdrawBalance($currency, $balance);
+                $account->replenishBalance($account->getMainCurrency(), $funds);
                 $account->removeCurrency($currency);
             }
         }
